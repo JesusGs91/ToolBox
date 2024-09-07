@@ -161,6 +161,89 @@ def get_features_num_regression(df, target_col, umbral_corr, pvalue=None):
 
     return selected_columns
 
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+from scipy.stats import pearsonr
+
+def plot_features_num_regression(df, target_col="", columns = [], umbral_corr=0, pvalue = None):
+    """
+    Esta función genera gráficos para mostrar la relación entre variables numéricas
+    y una variable objetivo numérica, dependiendo del nivel de correlación y el p-value.
+
+    Argumentos:
+    df (pd.DataFrame): dataframe con los datos.
+    target_col (str): nombre de la columna objetivo.
+    columns (list): lista de columnas a analizar.
+    umbral_corr (float): valor mínimo de correlación.
+    pvalue (float, opcional): filtra las columnas con un p-value significativo.
+
+    Retorna:
+    list: Lista con las columnas que están correlacionadas por encima del umbral.
+    """
+
+    # Paso 1: Verificar que 'target_col' está en el DataFrame
+    if target_col not in df.columns:
+        print("Error: La columna objetivo no está en el DataFrame.")
+        return None
+
+    # Paso 2: Verificar que 'target_col' es numérica
+    if not (df[target_col].dtype == 'int64' or df[target_col].dtype == 'float64'):
+        print("Error: La columna objetivo debe ser numérica (entero o decimal).")
+        return None
+
+    # Paso 3: Si no hay columnas especificadas, seleccionar todas las numéricas
+    if not columns:
+        # Seleccionar solo las columnas numéricas del DataFrame
+        columns = [col for col in df.columns if df[col].dtype in ['int64', 'float64']]
+
+    # Paso 4: Excluir la columna objetivo de las columnas a analizar
+    if target_col in columns:
+        columns.remove(target_col)
+
+    # Lista para guardar las columnas que cumplen con los criterios
+    selected_columns = []
+
+    # Paso 5: Calcular la correlación para cada columna numérica
+    for col in columns:
+        # Calcular la correlación de Pearson entre la columna y la columna objetivo
+        correlacion, p_val = pearsonr(df[col].dropna(), df[target_col].dropna())
+        
+        # Comprobar la correlación supera el umbral
+        if abs(correlacion) >= umbral_corr:
+            if pvalue is not None:
+                # Si se especifica p-value, también verificar si es significativo
+                if p_val <= (1 - pvalue):
+                    selected_columns.append(col)
+            else:
+                selected_columns.append(col)
+
+    # Crear gráfico con subplots:
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))  # Crear una figura con 3 subplots
+
+    # Paso 1: Primer bloque (hasta 5 columnas)
+    if len(selected_columns) > 0:
+        columnas_bloque1 = [target_col] + selected_columns[:5]
+        sns.pairplot(df[columnas_bloque1], ax=axes[0])  # Poner el primer pairplot en el primer subplot
+
+    # Paso 2: Segundo bloque (de 6 a 10 columnas, si existen)
+    if len(selected_columns) > 5:
+        columnas_bloque2 = [target_col] + selected_columns[5:10]
+        sns.pairplot(df[columnas_bloque2], ax=axes[1])  # Poner el segundo pairplot en el segundo subplot
+
+    # Paso 3: Tercer bloque (de 11 a 15 columnas, si existen)
+    if len(selected_columns) > 10:
+        columnas_bloque3 = [target_col] + selected_columns[10:15]
+        sns.pairplot(df[columnas_bloque3], ax=axes[2])  # Poner el tercer pairplot en el tercer subplot
+
+    # Ajustar el layout de la figura
+    plt.tight_layout()
+    plt.show()
+
+
+    # Retornar las columnas seleccionadas
+    return selected_columns
+
 
 
 from scipy.stats import f_oneway, ttest_ind
@@ -242,3 +325,80 @@ Esta función identifica las columnas categóricas en un DataFrame que tienen un
             columnas_significativas.append(col)
     
     return columnas_significativas
+
+
+def plot_features_cat_regression(df, target_col = "", columns=[], pvalue = 0.05, with_individual_plot = False):
+    '''
+    La función visualiza la relación entre una variable objetivo (target_col) numérica y variables categóricas del df, por medio de histogramas agrupados. 
+    Las columnas categóricas que se visualizan son aquellas que tienen una relación estadísticamente significativa con el target_col, según el p-valor indicado.
+
+    Argumentos:
+    df (pandas.DataFrame): El df que contiene los datos.
+    target_col (str): Nombre de la columna que será el objetivo de la regresión. Debe ser una variable numérica.
+    columns (list): Lista de columnas categóricas a analizar. Si está vacío, se seleccionan todas las categóricas del df.
+    pvalue (float): Nivel de significancia estadística. Por defecto es 0.05.
+    with_individual_plot (bool): Si es True, se generarán histogramas individuales para cada categoría en las columnas significativas.
+
+    Retorno:
+    list: Lista de columnas categóricas que tienen una relación significativa con target_col.
+   '''
+    
+    # Comprobación 1: Verificar si target_col existe en el dataframe
+    if target_col not in df.columns:
+        print("Error: La columna 'target_col' no existe en el DataFrame.")
+        return None
+    
+    # Comprobación 2: Asegurarse de que target_col es una columna numérica
+    if not pd.api.types.is_numeric_dtype(df[target_col]):
+        print("Error: La columna 'target_col' no es una variable numérica.")
+        return None
+    
+    # Comprobación 3: Validar que el valor de pvalue es un float entre 0 y 1
+    if not isinstance(pvalue, float) or not (0 < pvalue < 1):
+        print("Error: El valor de 'pvalue' debe ser un float entre 0 y 1.")
+        return None
+    
+    # Comprobación 4: Asegurarse de que columns es una lista
+    if not isinstance(columns, list):
+        print("Error: 'columns' debe ser una lista de strings.")
+        return None
+    
+    # Si no se proporcionan columnas, seleccionar todas las columnas categóricas
+    if not columns:
+        columns = [col for col in df.columns if pd.api.types.is_categorical_dtype(df[col])]
+    
+    # Filtrar columnas significativas usando la función columnas_significativas
+    cols_significativas = columnas_significativas(df, target_col, pvalue)
+    columns_filtradas = [col for col in columns if col in cols_significativas]
+    
+    # Si no hay columnas significativas, informar al usuario
+    if not columns_filtradas:
+        print("No hay columnas categóricas significativas con respecto a la variable target.")
+        return []
+    
+    # Generar gráficos para cada columna categórica significativa
+    for col in columns_filtradas:
+        plt.figure(figsize = (8, 6))
+        
+        # Graficar un histograma agrupado de la variable objetivo por cada categoría en la columna categórica
+        df.groupby(col)[target_col].plot(kind = 'hist', alpha=0.5, legend = True)
+        
+        # Añadir título y etiquetas
+        plt.title(f'Histograma agrupado de {target_col} según {col}')
+        plt.xlabel(target_col)
+        plt.ylabel('Frecuencia')
+        plt.legend(title=col)
+        plt.show()
+        
+        # Si with_individual_plot es True, generar histogramas individuales por categoría
+        if with_individual_plot:
+            for categoria in df[col].unique():
+                plt.figure(figsize=(6, 4))
+                df[df[col] == categoria][target_col].plot(kind = 'hist', bins = 20, alpha = 0.7)                
+                plt.title(f'Histograma de {target_col} para {col} = {categoria}') #Añadir título 
+                plt.xlabel(target_col) #Etiquetas para el histograma individual
+                plt.ylabel('Frecuencia') #Etiquetas para el histograma individual
+                plt.show()
+
+    # Devolver la lista de columnas categóricas que resultaron significativas
+    return columns_filtradas
