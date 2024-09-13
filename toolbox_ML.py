@@ -53,7 +53,7 @@ def describe_df(df):
 
 
 
-def tipifica_variables(df, umbral_categoria, umbral_continua):
+def tipifica_variables(df, umbral_categoria=10, umbral_continua=0.90):
 
     """
     Esta función sugiere el tipo de cada columna del DataFrame basándose en la cardinalidad
